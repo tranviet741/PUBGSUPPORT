@@ -6,7 +6,7 @@ const btnLogout = document.getElementById("btnLogout");
 const btnAdmin = document.getElementById("btnAdmin");
 
 if (userBadge && session) {
-  userBadge.textContent = `${session.username} (${session.role})`;
+  userBadge.textContent = session.username;
 }
 if (btnAdmin && isAdmin()) {
   btnAdmin.style.display = "inline-block";
@@ -27,12 +27,11 @@ const mapStage = document.getElementById("mapStage");
 const overlay = document.getElementById("overlay");
 const ctx = overlay.getContext("2d");
 const loading = document.getElementById("loading");
+const loadingText = loading.querySelector(".loading-text");
 const distanceValue = document.getElementById("distanceValue");
 const mortarStatus = document.getElementById("mortarStatus");
 const mapInfo = document.getElementById("mapInfo");
 const coordsText = document.getElementById("coordsText");
-const showGrid = document.getElementById("showGrid");
-const secretList = document.getElementById("secretList");
 const btnToolPan = document.getElementById("btnToolPan");
 const btnToolMeasure = document.getElementById("btnToolMeasure");
 const zoomLabel = document.getElementById("zoomLabel");
@@ -62,10 +61,12 @@ let hdLoading = false;
 let mapLoadToken = 0;
 let toolMode = "pan";
 
+const bunkerImageCache = new Map();
+
 MAPS.forEach((m, i) => {
   const opt = document.createElement("option");
   opt.value = m.id;
-  opt.textContent = `${m.name} (${m.sizeM / 1000}×${m.sizeM / 1000} km)`;
+  opt.textContent = `${m.name} (${m.sizeM / 1000}km)`;
   mapSelect.appendChild(opt);
   if (i === 0) mapSelect.value = m.id;
 });
@@ -74,47 +75,16 @@ function getMapById(id) {
   return MAPS.find((m) => m.id === id) || MAPS[0];
 }
 
+function setMapLoading(show, text = "Đang tải bản đồ…") {
+  loadingText.textContent = text;
+  loading.classList.toggle("hidden", !show);
+}
+
 function setToolMode(mode) {
   toolMode = mode;
   btnToolPan.classList.toggle("active", mode === "pan");
   btnToolMeasure.classList.toggle("active", mode === "measure");
   mapViewport.classList.toggle("measuring", mode === "measure");
-}
-
-function getSecretRooms(mapId) {
-  return SECRET_ROOMS[mapId] || [];
-}
-
-function renderSecretList() {
-  const rooms = getSecretRooms(currentMap.id);
-  secretList.innerHTML = "";
-  if (rooms.length === 0) {
-    secretList.innerHTML =
-      '<p class="secret-empty">Map này không có hầm bí mật trên PC.</p>';
-    return;
-  }
-  rooms.forEach((room, i) => {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.textContent = `${i + 1}. ${room.name}`;
-    btn.addEventListener("click", () => focusOnUV(room, 4));
-    secretList.appendChild(btn);
-  });
-}
-
-function focusOnUV(uv, zoomLevel = 4) {
-  if (!mapNativeW) return;
-  const vw = mapViewport.clientWidth;
-  const vh = mapViewport.clientHeight;
-  scale = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoomLevel));
-  panX = vw / 2 - uv.u * baseWidth * scale;
-  panY = vh / 2 - uv.v * baseHeight * scale;
-  clampPan();
-  applyTransform();
-  const rooms = getSecretRooms(currentMap.id);
-  const idx = rooms.indexOf(uv);
-  const label = uv.name || (idx >= 0 ? rooms[idx].name : "vị trí đã chọn");
-  coordsText.textContent = `Hầm bí mật: ${label}`;
 }
 
 function startMeasure(p) {
@@ -137,19 +107,13 @@ function isPanTrigger(e) {
 }
 
 function updateMapInfo() {
-  const quality = hdReady
-    ? " · ảnh HD"
-    : hdLoading
-      ? " · đang tải HD…"
-      : " · ảnh SD";
-  mapInfo.textContent =
-    `${currentMap.name}: ${currentMap.sizeM / 1000}×${currentMap.sizeM / 1000} km — mỗi ô = 100m${quality}`;
+  const quality = hdReady ? "HD" : hdLoading ? "SD → HD" : "SD";
+  mapInfo.textContent = `${currentMap.sizeM / 1000}×${currentMap.sizeM / 1000} km · ${quality}`;
 }
 
 function updateZoomLabel() {
   let label = Math.round(scale * 100) + "%";
-  if (hdReady) label += " · HD";
-  else if (hdLoading) label += " · SD→HD…";
+  if (hdReady) label += " HD";
   zoomLabel.textContent = label;
 }
 
@@ -265,18 +229,18 @@ function updateMortarStatus(meters) {
   mortarStatus.className = "mortar-status";
   if (!Number.isFinite(meters)) {
     mortarStatus.classList.add("idle");
-    mortarStatus.textContent = `Súng cối: tầm bắn ~${MORTAR_MIN}m – ${MORTAR_MAX}m`;
+    mortarStatus.textContent = "Tầm cối: 121m – 700m";
     return;
   }
   if (meters < MORTAR_MIN) {
     mortarStatus.classList.add("too-close");
-    mortarStatus.textContent = `Quá gần (${MORTAR_MIN}m tối thiểu) — lùi hoặc dùng lựu`;
+    mortarStatus.textContent = `Quá gần (<${MORTAR_MIN}m)`;
   } else if (meters > MORTAR_MAX) {
     mortarStatus.classList.add("too-far");
-    mortarStatus.textContent = `Quá xa (>${MORTAR_MAX}m) — tiến gần hơn`;
+    mortarStatus.textContent = `Quá xa (>${MORTAR_MAX}m)`;
   } else {
     mortarStatus.classList.add("in-range");
-    mortarStatus.textContent = "Trong tầm súng cối — có thể bắn";
+    mortarStatus.textContent = "✓ Trong tầm — có thể bắn";
   }
 }
 
@@ -311,6 +275,7 @@ function zoomAt(sx, sy, factor) {
   panY = sy - v * baseHeight * scale;
   clampPan();
   applyTransform();
+  maybeLoadHD();
 }
 
 function zoomBy(factor) {
@@ -321,31 +286,6 @@ function zoomBy(factor) {
 
 function resetZoom() {
   fitMapToViewport(true);
-}
-
-function drawGrid() {
-  if (!showGrid.checked || baseWidth <= 0) return;
-  const cells = currentMap.sizeM / 100;
-
-  ctx.save();
-  ctx.strokeStyle = "rgba(255, 255, 255, 0.14)";
-  ctx.lineWidth = 1;
-  for (let i = 0; i <= cells; i++) {
-    const u = i / cells;
-    const top = uvToScreen({ u, v: 0 });
-    const bottom = uvToScreen({ u, v: 1 });
-    const left = uvToScreen({ u: 0, v: i / cells });
-    const right = uvToScreen({ u: 1, v: i / cells });
-    ctx.beginPath();
-    ctx.moveTo(top.x, top.y);
-    ctx.lineTo(bottom.x, bottom.y);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(left.x, left.y);
-    ctx.lineTo(right.x, right.y);
-    ctx.stroke();
-  }
-  ctx.restore();
 }
 
 function drawMarker(canvasPt, color, label) {
@@ -388,14 +328,9 @@ function redraw() {
   ctx.clearRect(0, 0, w, h);
   if (baseWidth <= 0) return;
 
-  drawGrid();
+  if (pointA) drawMarker(uvToScreen(pointA), "#3dd68c", "Bạn");
+  if (pointB) drawMarker(uvToScreen(pointB), "#ff6b6b", "Địch");
 
-  if (pointA) {
-    drawMarker(uvToScreen(pointA), "#3dd68c", "Bạn");
-  }
-  if (pointB) {
-    drawMarker(uvToScreen(pointB), "#ff6b6b", "Địch");
-  }
   if (pointA && pointB) {
     drawLine(pointA, pointB, "#f5a623", false);
     const mid = uvToScreen({
@@ -427,16 +362,21 @@ function finishMeasure(endPoint) {
   const dist = uvDistanceMeters(pointA, pointB);
   distanceValue.textContent = formatMeters(dist);
   updateMortarStatus(dist);
-  coordsText.textContent =
-    `Điểm đứng → mục tiêu | Độ dài: ${formatMeters(dist)} m`;
+  coordsText.textContent = `${formatMeters(dist)} m`;
   redraw();
+}
+
+function maybeLoadHD() {
+  if (hdReady || hdLoading || scale < 1.5) return;
+  hdLoading = true;
+  updateMapInfo();
+  mapImageHigh.src = currentMap.imgHigh;
 }
 
 function loadMap(map) {
   const token = ++mapLoadToken;
   currentMap = map;
-  loading.classList.remove("hidden");
-  loading.textContent = "Đang tải bản đồ…";
+  setMapLoading(true, "Đang tải bản đồ…");
   pointA = null;
   pointB = null;
   dragging = false;
@@ -449,28 +389,23 @@ function loadMap(map) {
   activeMapImage = null;
   mapNativeW = 0;
   mapNativeH = 0;
+  mapImageHigh.src = "";
   updateMapInfo();
-  renderSecretList();
 
   mapImageLow.onload = () => {
     if (token !== mapLoadToken) return;
     activeMapImage = mapImageLow;
     mapNativeW = mapImageLow.naturalWidth;
     mapNativeH = mapImageLow.naturalHeight;
-    loading.classList.add("hidden");
+    setMapLoading(false);
     fitMapToViewport(true);
     resizeOverlay();
     updateMapInfo();
-    if (hdLoading) {
-      loading.textContent = "Đang tải bản đồ HD (~90MB)…";
-      loading.classList.remove("hidden");
-    }
   };
 
   mapImageLow.onerror = () => {
     if (token !== mapLoadToken) return;
-    loading.textContent =
-      "Không tải được ảnh map (cần internet). Thử tải lại trang.";
+    setMapLoading(true, "Không tải được map — cần internet");
   };
 
   mapImageHigh.onload = () => {
@@ -480,7 +415,6 @@ function loadMap(map) {
     mapNativeH = mapImageHigh.naturalHeight;
     hdReady = true;
     hdLoading = false;
-    loading.classList.add("hidden");
     applyTransform();
     updateMapInfo();
   };
@@ -488,14 +422,10 @@ function loadMap(map) {
   mapImageHigh.onerror = () => {
     if (token !== mapLoadToken) return;
     hdLoading = false;
-    loading.classList.add("hidden");
     updateMapInfo();
-    updateZoomLabel();
   };
 
   mapImageLow.src = map.imgLow;
-  hdLoading = true;
-  mapImageHigh.src = map.imgHigh;
 }
 
 mapSelect.addEventListener("change", () => {
@@ -618,6 +548,7 @@ mapViewport.addEventListener("touchmove", (e) => {
     panY = midY - v * baseHeight * scale;
     clampPan();
     applyTransform();
+    maybeLoadHD();
     return;
   }
   if (panning && panStart && e.touches.length === 1) {
@@ -666,11 +597,8 @@ function bindZoomButtons(id, fn) {
   const el = document.getElementById(id);
   if (el) el.addEventListener("click", fn);
 }
-bindZoomButtons("btnZoomIn", () => zoomBy(ZOOM_STEP));
-bindZoomButtons("btnZoomOut", () => zoomBy(1 / ZOOM_STEP));
 bindZoomButtons("btnZoomInFloat", () => zoomBy(ZOOM_STEP));
 bindZoomButtons("btnZoomOutFloat", () => zoomBy(1 / ZOOM_STEP));
-bindZoomButtons("btnZoomReset", resetZoom);
 bindZoomButtons("btnZoomFit", resetZoom);
 
 document.getElementById("btnClear").addEventListener("click", () => {
@@ -684,17 +612,15 @@ document.getElementById("btnClear").addEventListener("click", () => {
   redraw();
 });
 
-showGrid.addEventListener("change", redraw);
 window.addEventListener("resize", resizeOverlay);
-
 setToolMode("pan");
 loadMap(MAPS[0]);
 
-/* Modal xem hầm bí mật */
+/* Modal hầm bí mật — preload + cache */
 const bunkerModal = document.getElementById("bunkerModal");
 const bunkerMapSelect = document.getElementById("bunkerMapSelect");
 const bunkerImage = document.getElementById("bunkerImage");
-const bunkerPlaceholder = document.getElementById("bunkerPlaceholder");
+const bunkerLoading = document.getElementById("bunkerLoading");
 const btnOpenBunker = document.getElementById("btnOpenBunker");
 const btnCloseBunker = document.getElementById("btnCloseBunker");
 
@@ -703,28 +629,66 @@ Object.entries(BUNKER_MAP_IMAGES).forEach(([id, data]) => {
   opt.value = id;
   opt.textContent = data.name;
   bunkerMapSelect.appendChild(opt);
+
+  const img = new Image();
+  const entry = { img, ready: false, error: false };
+  bunkerImageCache.set(id, entry);
+  img.onload = () => { entry.ready = true; };
+  img.onerror = () => { entry.error = true; };
+  img.src = data.image;
 });
 
 function showBunkerImage(mapId) {
   const data = BUNKER_MAP_IMAGES[mapId];
-  if (!data) {
-    bunkerImage.style.display = "none";
-    bunkerPlaceholder.style.display = "block";
-    bunkerPlaceholder.textContent = "Chọn map để xem ảnh hầm bí mật.";
+  if (!data) return;
+
+  const cached = bunkerImageCache.get(mapId);
+  bunkerImage.hidden = true;
+  bunkerLoading.classList.remove("hidden");
+
+  function display(src) {
+    bunkerImage.src = src;
+    if (bunkerImage.decode) {
+      bunkerImage.decode().then(() => {
+        bunkerLoading.classList.add("hidden");
+        bunkerImage.hidden = false;
+      }).catch(() => {
+        bunkerLoading.classList.add("hidden");
+        bunkerImage.hidden = false;
+      });
+    } else {
+      bunkerImage.onload = () => {
+        bunkerLoading.classList.add("hidden");
+        bunkerImage.hidden = false;
+      };
+    }
+  }
+
+  if (cached?.ready) {
+    display(cached.img.src);
     return;
   }
-  bunkerPlaceholder.style.display = "none";
-  bunkerImage.style.display = "block";
-  bunkerImage.alt = `Hầm bí mật — ${data.name}`;
-  bunkerImage.src = data.image;
+  if (cached?.error) {
+    bunkerLoading.querySelector("span").textContent = "Không tải được ảnh";
+    return;
+  }
+
+  const wait = setInterval(() => {
+    if (cached.ready) {
+      clearInterval(wait);
+      display(cached.img.src);
+    } else if (cached.error) {
+      clearInterval(wait);
+      bunkerLoading.querySelector("span").textContent = "Không tải được ảnh";
+    }
+  }, 50);
 }
 
 function openBunkerModal() {
   bunkerModal.classList.add("open");
   document.body.style.overflow = "hidden";
-  const currentId = currentMap.id;
-  if (BUNKER_MAP_IMAGES[currentId]) {
-    bunkerMapSelect.value = currentId;
+  if (BUNKER_MAP_IMAGES[currentMap.id]) {
+    bunkerMapSelect.value = currentMap.id;
   }
   showBunkerImage(bunkerMapSelect.value);
 }
@@ -739,11 +703,9 @@ btnCloseBunker.addEventListener("click", closeBunkerModal);
 bunkerMapSelect.addEventListener("change", () => {
   showBunkerImage(bunkerMapSelect.value);
 });
-
 bunkerModal.addEventListener("click", (e) => {
   if (e.target === bunkerModal) closeBunkerModal();
 });
-
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && bunkerModal.classList.contains("open")) {
     closeBunkerModal();
