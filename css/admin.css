@@ -118,3 +118,23 @@
   opacity: 0.4;
   cursor: not-allowed;
 }
+
+.db-status {
+  display: inline-block;
+  font-size: 0.78rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  margin-left: 0.35rem;
+}
+
+.db-status.ok {
+  background: rgba(61, 214, 140, 0.15);
+  color: var(--ok);
+  border: 1px solid rgba(61, 214, 140, 0.35);
+}
+
+.db-status.error {
+  background: rgba(255, 107, 107, 0.12);
+  color: #ff9a9a;
+  border: 1px solid rgba(255, 107, 107, 0.3);
+}

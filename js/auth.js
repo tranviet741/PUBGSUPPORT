@@ -1,7 +1,12 @@
 const AUTH_SESSION_KEY = "pubg_tool_session";
+const LEGACY_USERS_KEY = "pubg_tool_users";
 const ADMIN_USER = "admin";
 const ADMIN_PASS = "pass123qwe!@#";
 const USERS_TABLE = "pubg_users";
+
+try {
+  localStorage.removeItem(LEGACY_USERS_KEY);
+} catch {}
 
 let supabaseClient = null;
 
@@ -157,9 +162,19 @@ async function deleteUserByAdmin(username) {
   return { ok: true, message: `Đã xóa tài khoản "${name}".` };
 }
 
-async function listUsersForAdmin() {
-  if (!isAdmin()) return [];
+async function testSupabaseConnection() {
+  const configErr = getConfigError();
+  if (configErr) return { ok: false, message: configErr };
 
+  const db = getSupabase();
+  const { error } = await db.from(USERS_TABLE).select("username").limit(1);
+  if (error) {
+    return { ok: false, message: "Không kết nối được Supabase: " + error.message };
+  }
+  return { ok: true, message: "Đã kết nối Supabase — tài khoản lưu trên cloud." };
+}
+
+async function listUsersForAdmin() {
   const adminEntry = {
     username: ADMIN_USER,
     role: "admin",
@@ -167,8 +182,14 @@ async function listUsersForAdmin() {
     protected: true,
   };
 
+  if (!isAdmin()) {
+    return { ok: false, users: [], error: "Không có quyền admin." };
+  }
+
   const configErr = getConfigError();
-  if (configErr) return [adminEntry];
+  if (configErr) {
+    return { ok: false, users: [adminEntry], error: configErr };
+  }
 
   const db = getSupabase();
   const { data, error } = await db
@@ -176,7 +197,13 @@ async function listUsersForAdmin() {
     .select("username, role, created_at")
     .order("created_at", { ascending: true });
 
-  if (error) return [adminEntry];
+  if (error) {
+    return {
+      ok: false,
+      users: [adminEntry],
+      error: "Lỗi tải danh sách từ Supabase: " + error.message,
+    };
+  }
 
   const users = (data || []).map((u) => ({
     username: u.username,
@@ -185,7 +212,7 @@ async function listUsersForAdmin() {
     protected: false,
   }));
 
-  return [adminEntry, ...users];
+  return { ok: true, users: [adminEntry, ...users], error: null };
 }
 
 function requireAuth() {

@@ -3,18 +3,20 @@ if (!requireAdmin()) throw new Error("Forbidden");
 document.getElementById("btnLogout").addEventListener("click", logout);
 
 const adminMessage = document.getElementById("adminMessage");
+const dbStatus = document.getElementById("dbStatus");
 const createUserForm = document.getElementById("createUserForm");
 const userTableBody = document.getElementById("userTableBody");
 const createBtn = createUserForm.querySelector('button[type="submit"]');
 
-const configErr = getConfigError();
-if (configErr) {
-  showMessage(configErr, "error");
-}
-
 function showMessage(text, type) {
   adminMessage.textContent = text;
   adminMessage.className = `auth-message show ${type}`;
+}
+
+function showDbStatus(text, ok) {
+  if (!dbStatus) return;
+  dbStatus.textContent = text;
+  dbStatus.className = ok ? "db-status ok" : "db-status error";
 }
 
 function formatDate(ts) {
@@ -22,12 +24,24 @@ function formatDate(ts) {
   return new Date(ts).toLocaleDateString("vi-VN");
 }
 
-async function renderUserTable() {
-  userTableBody.innerHTML = '<tr><td colspan="4" style="color:var(--muted)">Đang tải…</td></tr>';
+async function checkConnection() {
+  const result = await testSupabaseConnection();
+  showDbStatus(result.message, result.ok);
+  if (!result.ok) showMessage(result.message, "error");
+}
 
-  const users = await listUsersForAdmin();
+async function renderUserTable() {
+  userTableBody.innerHTML = '<tr><td colspan="4" style="color:var(--muted)">Đang tải từ Supabase…</td></tr>';
+
+  const result = await listUsersForAdmin();
   userTableBody.innerHTML = "";
 
+  if (result.error) {
+    showMessage(result.error, "error");
+    showDbStatus(result.error, false);
+  }
+
+  const users = result.users || [];
   if (users.length === 0) {
     userTableBody.innerHTML = '<tr><td colspan="4" style="color:var(--muted)">Chưa có tài khoản.</td></tr>';
     return;
@@ -53,9 +67,9 @@ async function renderUserTable() {
       btn.addEventListener("click", async () => {
         if (!confirm(`Xóa tài khoản "${user.username}"?`)) return;
         btn.disabled = true;
-        const result = await deleteUserByAdmin(user.username);
-        showMessage(result.message, result.ok ? "success" : "error");
-        if (result.ok) {
+        const delResult = await deleteUserByAdmin(user.username);
+        showMessage(delResult.message, delResult.ok ? "success" : "error");
+        if (delResult.ok) {
           await renderUserTable();
         } else {
           btn.disabled = false;
@@ -77,7 +91,7 @@ createUserForm.addEventListener("submit", async (e) => {
   }
 
   createBtn.disabled = true;
-  createBtn.textContent = "Đang tạo…";
+  createBtn.textContent = "Đang lưu lên Supabase…";
 
   const result = await createUserByAdmin(
     document.getElementById("newUser").value,
@@ -91,7 +105,9 @@ createUserForm.addEventListener("submit", async (e) => {
   if (result.ok) {
     createUserForm.reset();
     await renderUserTable();
+    await checkConnection();
   }
 });
 
+checkConnection();
 renderUserTable();
