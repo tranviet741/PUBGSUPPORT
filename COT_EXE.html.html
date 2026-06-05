@@ -1,0 +1,1280 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PUBG PC — Tính khoảng cách súng cối</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --panel: #1a2332;
+      --border: #2d3a4f;
+      --accent: #f5a623;
+      --accent-dim: #c4841a;
+      --ok: #3dd68c;
+      --warn: #ff6b6b;
+      --text: #e8edf4;
+      --muted: #8b9cb3;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+
+    header {
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(180deg, #1a2332 0%, var(--bg) 100%);
+    }
+
+    header h1 {
+      font-size: 1.35rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+
+    header p {
+      color: var(--muted);
+      font-size: 0.9rem;
+      margin-top: 0.25rem;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 0;
+      min-height: calc(100vh - 80px);
+    }
+
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; }
+      aside { border-right: none; border-bottom: 1px solid var(--border); }
+    }
+
+    aside {
+      background: var(--panel);
+      border-right: 1px solid var(--border);
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      display: block;
+      margin-bottom: 0.35rem;
+    }
+
+    select, button {
+      width: 100%;
+      padding: 0.55rem 0.75rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 0.95rem;
+      cursor: pointer;
+    }
+
+    select:focus, button:focus {
+      outline: 2px solid var(--accent);
+      outline-offset: 1px;
+    }
+
+    button.primary {
+      background: var(--accent);
+      color: #1a1200;
+      border-color: var(--accent-dim);
+      font-weight: 600;
+    }
+
+    button.primary:hover { filter: brightness(1.08); }
+
+    button.secondary:hover { background: #243044; }
+
+    .distance-box {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+      text-align: center;
+    }
+
+    .distance-box .value {
+      font-size: 2.5rem;
+      font-weight: 800;
+      color: var(--accent);
+      line-height: 1.1;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .distance-box .unit {
+      font-size: 1rem;
+      color: var(--muted);
+      margin-top: 0.15rem;
+    }
+
+    .mortar-status {
+      margin-top: 0.75rem;
+      padding: 0.6rem 0.75rem;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-align: center;
+    }
+
+    .mortar-status.in-range {
+      background: rgba(61, 214, 140, 0.15);
+      color: var(--ok);
+      border: 1px solid rgba(61, 214, 140, 0.35);
+    }
+
+    .mortar-status.too-close {
+      background: rgba(255, 107, 107, 0.12);
+      color: #ff9a9a;
+      border: 1px solid rgba(255, 107, 107, 0.3);
+    }
+
+    .mortar-status.too-far {
+      background: rgba(139, 156, 179, 0.12);
+      color: var(--muted);
+      border: 1px solid var(--border);
+    }
+
+    .mortar-status.idle {
+      background: transparent;
+      color: var(--muted);
+      border: 1px dashed var(--border);
+      font-weight: 400;
+    }
+
+    .hint {
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    .hint ol {
+      padding-left: 1.1rem;
+      margin-top: 0.35rem;
+    }
+
+    .hint li { margin-bottom: 0.25rem; }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.9rem;
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    .toggle-row input { width: auto; cursor: pointer; }
+
+    .map-info {
+      font-size: 0.8rem;
+      color: var(--muted);
+      padding: 0.5rem;
+      background: var(--bg);
+      border-radius: 6px;
+      border: 1px solid var(--border);
+    }
+
+    main {
+      padding: 1rem;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      flex: 1;
+      min-height: 0;
+    }
+
+    .map-viewport {
+      position: relative;
+      width: 100%;
+      max-width: min(1100px, 100%);
+      height: min(72vh, 780px);
+      margin: 0 auto;
+      user-select: none;
+      touch-action: none;
+      cursor: grab;
+      border: 2px solid var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+      background: #0a0e12;
+      flex: 1;
+    }
+
+    .map-viewport.panning { cursor: grabbing; }
+    .map-viewport.measuring { cursor: crosshair; }
+
+    .map-stage {
+      position: absolute;
+      left: 0;
+      top: 0;
+      transform-origin: 0 0;
+      will-change: transform;
+    }
+
+    .map-stage canvas#mapCanvas {
+      display: block;
+      pointer-events: none;
+    }
+
+    .map-viewport canvas {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    .zoom-toolbar {
+      position: absolute;
+      right: 10px;
+      top: 10px;
+      z-index: 5;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .zoom-toolbar button {
+      width: 36px;
+      height: 36px;
+      padding: 0;
+      font-size: 1.2rem;
+      font-weight: 700;
+      line-height: 1;
+      border-radius: 6px;
+      background: rgba(26, 35, 50, 0.92);
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+
+    .zoom-toolbar button:hover {
+      background: #243044;
+      border-color: var(--accent);
+    }
+
+    .zoom-label {
+      position: absolute;
+      left: 10px;
+      bottom: 10px;
+      z-index: 5;
+      font-size: 0.75rem;
+      color: var(--muted);
+      background: rgba(15, 20, 25, 0.85);
+      padding: 0.35rem 0.55rem;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      pointer-events: none;
+    }
+
+    .zoom-hint-bar {
+      font-size: 0.8rem;
+      color: var(--muted);
+      text-align: center;
+      margin-bottom: 0.5rem;
+    }
+
+    .btn-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 0.35rem;
+    }
+
+    .btn-row button {
+      padding: 0.45rem 0.35rem;
+      font-size: 0.85rem;
+    }
+
+    .tool-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.35rem;
+    }
+
+    .tool-row button {
+      padding: 0.5rem 0.4rem;
+      font-size: 0.82rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.35rem;
+    }
+
+    .tool-row button.active {
+      background: var(--accent);
+      color: #1a1200;
+      border-color: var(--accent-dim);
+      font-weight: 600;
+    }
+
+    .secret-list {
+      max-height: 180px;
+      overflow-y: auto;
+      font-size: 0.78rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--bg);
+    }
+
+    .secret-list button {
+      width: 100%;
+      text-align: left;
+      padding: 0.4rem 0.55rem;
+      border: none;
+      border-bottom: 1px solid var(--border);
+      border-radius: 0;
+      font-size: 0.78rem;
+      background: transparent;
+    }
+
+    .secret-list button:last-child { border-bottom: none; }
+
+    .secret-list button:hover {
+      background: #243044;
+    }
+
+    .secret-empty {
+      padding: 0.55rem;
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+
+    .loading {
+      position: absolute;
+      inset: 0;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(15, 20, 25, 0.85);
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .loading.hidden { display: none; }
+
+    .coords {
+      margin-top: 0.75rem;
+      font-size: 0.8rem;
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+    }
+
+    footer {
+      text-align: center;
+      padding: 0.75rem;
+      font-size: 0.75rem;
+      color: var(--muted);
+      border-top: 1px solid var(--border);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>PUBG PC — Tính khoảng cách súng cối</h1>
+    <p>Chọn vị trí đứng trên map, kéo tới mục tiêu — tool tự quy đổi ra mét theo lưới map trong game.</p>
+  </header>
+
+  <div class="layout">
+    <aside>
+      <div>
+        <label for="mapSelect">Bản đồ</label>
+        <select id="mapSelect"></select>
+      </div>
+
+      <div class="map-info" id="mapInfo"></div>
+
+      <div class="distance-box">
+        <div class="value" id="distanceValue">—</div>
+        <div class="unit">mét (m)</div>
+        <div class="mortar-status idle" id="mortarStatus">
+          Súng cối: tầm bắn ~121m – 700m
+        </div>
+      </div>
+
+      <button type="button" class="primary" id="btnClear">Xóa đo / đo lại</button>
+
+      <div>
+        <label>Công cụ</label>
+        <div class="tool-row" style="margin-top:0.35rem">
+          <button type="button" class="active" id="btnToolPan" title="Kéo map">✋ Di chuyển</button>
+          <button type="button" id="btnToolMeasure" title="Đo khoảng cách">📏 Đo cối</button>
+        </div>
+        <p class="hint" style="margin-top:0.4rem;font-size:0.78rem">
+          <strong>Chuột trái kéo</strong> = di chuyển map (bàn tay)<br />
+          <strong>Chuột phải kéo</strong> = đo khoảng cách cối<br />
+          <strong>Con lăn</strong> = zoom · Nút Đo cối = dùng trên điện thoại
+        </p>
+      </div>
+
+      <div>
+        <label>Zoom map</label>
+        <div class="btn-row" style="margin-top:0.35rem">
+          <button type="button" id="btnZoomOut" title="Thu nhỏ">−</button>
+          <button type="button" id="btnZoomReset" title="Vừa khung">100%</button>
+          <button type="button" id="btnZoomIn" title="Phóng to">+</button>
+        </div>
+      </div>
+
+      <label class="toggle-row">
+        <input type="checkbox" id="showGrid" checked />
+        Hiện lưới 100m
+      </label>
+
+      <label class="toggle-row">
+        <input type="checkbox" id="showSecrets" checked />
+        Hiện hầm bí mật
+      </label>
+
+      <div id="secretSection">
+        <label>Hầm bí mật — bấm để zoom tới</label>
+        <div class="secret-list" id="secretList"></div>
+      </div>
+
+      <div class="hint">
+        <strong>Cách dùng</strong>
+        <ol>
+          <li>Mở map trong game (phím <kbd>M</kbd>), căn vị trí giống bản đồ bên dưới.</li>
+          <li><strong>Zoom</strong> (con lăn hoặc nút +/−) để nhìn rõ vị trí.</li>
+          <li><strong>Chuột trái kéo</strong> để di chuyển map (bàn tay).</li>
+          <li><strong>Chuột phải giữ + kéo</strong> từ vị trí bạn → địch để đo mét.</li>
+          <li>Bật <strong>hầm bí mật</strong> để xem vị trí phòng (nếu map có).</li>
+        </ol>
+        <p style="margin-top:0.5rem">Mỗi ô vuông trắng trên map game = <strong>100m</strong>. Map HD (~8K) tự tải nền để zoom nét hơn.</p>
+      </div>
+    </aside>
+
+    <main>
+      <p class="zoom-hint-bar">Chuột trái = di chuyển · Chuột phải = đo cối · Con lăn = zoom</p>
+      <div class="map-viewport" id="mapViewport">
+        <div class="map-stage" id="mapStage">
+          <canvas id="mapCanvas"></canvas>
+        </div>
+        <canvas id="overlay"></canvas>
+        <div class="zoom-toolbar">
+          <button type="button" id="btnZoomInFloat" title="Phóng to">+</button>
+          <button type="button" id="btnZoomOutFloat" title="Thu nhỏ">−</button>
+          <button type="button" id="btnZoomFit" title="Vừa khung">⊡</button>
+        </div>
+        <div class="zoom-label" id="zoomLabel">100%</div>
+        <div class="loading" id="loading">Đang tải bản đồ…</div>
+      </div>
+      <p class="coords" id="coordsText"></p>
+    </main>
+  </div>
+
+  <footer>
+    Công cụ hỗ trợ offline — không can thiệp game. Ảnh map HD từ kho chính thức PUBG API.
+  </footer>
+
+  <script>
+    const MORTAR_MIN = 121;
+    const MORTAR_MAX = 700;
+    const PUBG_BASE = "https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Maps";
+    const PUBG_HD = "https://media.githubusercontent.com/media/pubg/api-assets/master/Assets/Maps";
+
+    function pubgUrls(prefix) {
+      return {
+        imgLow: `${PUBG_BASE}/${prefix}_Main_Low_Res.png`,
+        imgHigh: `${PUBG_HD}/${prefix}_Main_High_Res.png`,
+      };
+    }
+
+    const MAPS = [
+      { id: "erangel", name: "Erangel", sizeM: 8000, prefix: "Erangel", ...pubgUrls("Erangel") },
+      { id: "miramar", name: "Miramar", sizeM: 8000, prefix: "Miramar", ...pubgUrls("Miramar") },
+      { id: "sanhok", name: "Sanhok", sizeM: 4000, prefix: "Sanhok", ...pubgUrls("Sanhok") },
+      { id: "vikendi", name: "Vikendi", sizeM: 6000, prefix: "Vikendi", ...pubgUrls("Vikendi") },
+      { id: "karakin", name: "Karakin", sizeM: 2000, prefix: "Karakin", ...pubgUrls("Karakin") },
+      { id: "taego", name: "Taego", sizeM: 8000, prefix: "Taego", ...pubgUrls("Taego") },
+      { id: "deston", name: "Deston", sizeM: 8000, prefix: "Deston", ...pubgUrls("Deston") },
+    ];
+
+    // u/v: tọa độ chuẩn hóa 0–1 trên ảnh map (0=trái/trên)
+    const SECRET_ROOMS = {
+      erangel: [
+        { name: "NW Stalber (FI)", u: 0.82, v: 0.10 },
+        { name: "NW Georgopol (BJ)", u: 0.18, v: 0.14 },
+        { name: "S Severny (EJ)", u: 0.50, v: 0.22 },
+        { name: "E Tasnaka (GK)", u: 0.58, v: 0.38 },
+        { name: "E Georgopol (CK)", u: 0.24, v: 0.22 },
+        { name: "W Museum (FL)", u: 0.28, v: 0.42 },
+        { name: "S Hospital (BL)", u: 0.33, v: 0.65 },
+        { name: "NW Pochinki (CL)", u: 0.42, v: 0.50 },
+        { name: "W Farm (EM)", u: 0.48, v: 0.72 },
+        { name: "E Mylta (GM)", u: 0.72, v: 0.62 },
+        { name: "N Ferry Pier (CN)", u: 0.38, v: 0.82 },
+        { name: "NW Primorsk (BN)", u: 0.06, v: 0.55 },
+        { name: "N Military Base (EN)", u: 0.75, v: 0.75 },
+        { name: "W Military Base (EO)", u: 0.68, v: 0.82 },
+        { name: "E Military Base (FO)", u: 0.85, v: 0.80 },
+      ],
+      taego: [
+        { name: "#1 Wolong — NW góc nhà", u: 0.08, v: 0.12 },
+        { name: "#2 Đường đất phía Bắc", u: 0.15, v: 0.10 },
+        { name: "#3 Nam đồi lớn", u: 0.30, v: 0.18 },
+        { name: "#4 Nhà cực Nam trên đồi", u: 0.38, v: 0.22 },
+        { name: "#5 Đồi cây — khó thấy từ Nam", u: 0.48, v: 0.16 },
+        { name: "#6 Nam Sân bay — ngã ba", u: 0.58, v: 0.30 },
+        { name: "#7 Đông sông — góc NE", u: 0.75, v: 0.14 },
+        { name: "#8 Nhà cô đơn ven đường", u: 0.82, v: 0.28 },
+        { name: "#9 Đảo — nhà duy nhất", u: 0.85, v: 0.38 },
+        { name: "#10 Ven đường nhựa — nhà nhỏ", u: 0.70, v: 0.45 },
+        { name: "#11 Nhà hàng rào thấp", u: 0.62, v: 0.55 },
+        { name: "#12 Sau cửa hàng cũ — Đông", u: 0.78, v: 0.58 },
+        { name: "#13 Ruộng — nhà lớn hơn", u: 0.68, v: 0.68 },
+        { name: "#14 Ngã tư — xa đường chính", u: 0.52, v: 0.75 },
+        { name: "#15 Đông đường — gần nước", u: 0.76, v: 0.82 },
+      ],
+      deston: [
+        { name: "Ten Forts — phía Nam", u: 0.55, v: 0.22 },
+        { name: "Carpenter's End — trung tâm", u: 0.38, v: 0.28 },
+        { name: "Buxley — NW", u: 0.22, v: 0.32 },
+        { name: "Turrita — phía Bắc", u: 0.48, v: 0.15 },
+        { name: "Barclift — phía Đông", u: 0.62, v: 0.42 },
+        { name: "Sancarna — NE", u: 0.72, v: 0.35 },
+        { name: "Ripton — phía Bắc", u: 0.35, v: 0.48 },
+        { name: "Wind Farm — Bắc cầu", u: 0.58, v: 0.08 },
+        { name: "Concert — trung tâm", u: 0.42, v: 0.52 },
+        { name: "Holston Meadows — trung tâm", u: 0.52, v: 0.62 },
+        { name: "Cavala — phía Bắc", u: 0.78, v: 0.55 },
+        { name: "El Koro / Lodge — hầm ngầm", u: 0.18, v: 0.58 },
+      ],
+      vikendi: [
+        { name: "Cosmodrome — Security Lab", u: 0.72, v: 0.18 },
+        { name: "Volnova — Security Lab", u: 0.35, v: 0.42 },
+        { name: "Cement Factory — Security Lab", u: 0.55, v: 0.55 },
+        { name: "Dobro Mesto — Security Lab", u: 0.22, v: 0.62 },
+        { name: "Train Yard — Security Lab", u: 0.48, v: 0.72 },
+      ],
+    };
+
+    const mapSelect = document.getElementById("mapSelect");
+    const mapCanvas = document.getElementById("mapCanvas");
+    const mapCtx = mapCanvas.getContext("2d");
+    const mapImageLow = new Image();
+    const mapImageHigh = new Image();
+    mapImageLow.crossOrigin = "anonymous";
+    mapImageHigh.crossOrigin = "anonymous";
+    const mapViewport = document.getElementById("mapViewport");
+    const mapStage = document.getElementById("mapStage");
+    const overlay = document.getElementById("overlay");
+    const ctx = overlay.getContext("2d");
+    const loading = document.getElementById("loading");
+    const distanceValue = document.getElementById("distanceValue");
+    const mortarStatus = document.getElementById("mortarStatus");
+    const mapInfo = document.getElementById("mapInfo");
+    const coordsText = document.getElementById("coordsText");
+    const showGrid = document.getElementById("showGrid");
+    const showSecrets = document.getElementById("showSecrets");
+    const secretList = document.getElementById("secretList");
+    const secretSection = document.getElementById("secretSection");
+    const btnToolPan = document.getElementById("btnToolPan");
+    const btnToolMeasure = document.getElementById("btnToolMeasure");
+    const zoomLabel = document.getElementById("zoomLabel");
+
+    const MIN_ZOOM = 0.4;
+    const MAX_ZOOM = 12;
+    const ZOOM_STEP = 1.25;
+
+    let currentMap = MAPS[0];
+    let baseWidth = 0;
+    let baseHeight = 0;
+    let scale = 1;
+    let panX = 0;
+    let panY = 0;
+    let pointA = null;
+    let pointB = null;
+    let dragging = false;
+    let dragCurrent = null;
+    let panning = false;
+    let panStart = null;
+    let pinchStart = null;
+    let activeMapImage = null;
+    let mapNativeW = 0;
+    let mapNativeH = 0;
+    let hdReady = false;
+    let hdLoading = false;
+    let mapLoadToken = 0;
+    let toolMode = "pan";
+
+    MAPS.forEach((m, i) => {
+      const opt = document.createElement("option");
+      opt.value = m.id;
+      opt.textContent = `${m.name} (${m.sizeM / 1000}×${m.sizeM / 1000} km)`;
+      mapSelect.appendChild(opt);
+      if (i === 0) mapSelect.value = m.id;
+    });
+
+    function getMapById(id) {
+      return MAPS.find((m) => m.id === id) || MAPS[0];
+    }
+
+    function setToolMode(mode) {
+      toolMode = mode;
+      btnToolPan.classList.toggle("active", mode === "pan");
+      btnToolMeasure.classList.toggle("active", mode === "measure");
+      mapViewport.classList.toggle("measuring", mode === "measure");
+    }
+
+    function getSecretRooms(mapId) {
+      return SECRET_ROOMS[mapId] || [];
+    }
+
+    function renderSecretList() {
+      const rooms = getSecretRooms(currentMap.id);
+      secretList.innerHTML = "";
+      if (rooms.length === 0) {
+        secretList.innerHTML =
+          '<p class="secret-empty">Map này không có hầm bí mật trên PC.</p>';
+        return;
+      }
+      rooms.forEach((room, i) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.textContent = `${i + 1}. ${room.name}`;
+        btn.addEventListener("click", () => focusOnUV(room, 4));
+        secretList.appendChild(btn);
+      });
+    }
+
+    function focusOnUV(uv, zoomLevel = 4) {
+      if (!mapNativeW) return;
+      const vw = mapViewport.clientWidth;
+      const vh = mapViewport.clientHeight;
+      scale = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoomLevel));
+      panX = vw / 2 - uv.u * baseWidth * scale;
+      panY = vh / 2 - uv.v * baseHeight * scale;
+      clampPan();
+      applyTransform();
+      const rooms = getSecretRooms(currentMap.id);
+      const idx = rooms.indexOf(uv);
+      const label = uv.name || (idx >= 0 ? rooms[idx].name : "vị trí đã chọn");
+      coordsText.textContent = `Hầm bí mật: ${label}`;
+    }
+
+    function startMeasure(p) {
+      pointA = p;
+      pointB = null;
+      dragCurrent = p;
+      dragging = true;
+      mapViewport.classList.add("measuring");
+      distanceValue.textContent = "0";
+      updateMortarStatus(0);
+      redraw();
+    }
+
+    function isMeasureTrigger(e) {
+      return e.button === 2;
+    }
+
+    function isPanTrigger(e) {
+      return e.button === 0 || e.button === 1;
+    }
+
+    function updateMapInfo() {
+      const quality = hdReady
+        ? " · ảnh HD"
+        : hdLoading
+          ? " · đang tải HD…"
+          : " · ảnh SD";
+      mapInfo.textContent =
+        `${currentMap.name}: ${currentMap.sizeM / 1000}×${currentMap.sizeM / 1000} km — mỗi ô = 100m${quality}`;
+    }
+
+    function updateZoomLabel() {
+      let label = Math.round(scale * 100) + "%";
+      if (hdReady) label += " · HD";
+      else if (hdLoading) label += " · SD→HD…";
+      zoomLabel.textContent = label;
+    }
+
+    function renderMapCanvas() {
+      if (!activeMapImage || !activeMapImage.naturalWidth || baseWidth <= 0) return;
+      const dpr = window.devicePixelRatio || 1;
+      const displayW = baseWidth * scale;
+      const displayH = baseHeight * scale;
+      mapCanvas.style.width = displayW + "px";
+      mapCanvas.style.height = displayH + "px";
+      mapCanvas.width = Math.max(1, Math.round(displayW * dpr));
+      mapCanvas.height = Math.max(1, Math.round(displayH * dpr));
+      mapCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      mapCtx.imageSmoothingEnabled = true;
+      mapCtx.imageSmoothingQuality = "high";
+      mapCtx.clearRect(0, 0, displayW, displayH);
+      mapCtx.drawImage(
+        activeMapImage,
+        0, 0, activeMapImage.naturalWidth, activeMapImage.naturalHeight,
+        0, 0, displayW, displayH
+      );
+    }
+
+    function applyTransform() {
+      mapStage.style.transform = `translate(${panX}px, ${panY}px)`;
+      renderMapCanvas();
+      updateZoomLabel();
+      redraw();
+    }
+
+    function fitMapToViewport(resetPan = true) {
+      if (!mapNativeW) return;
+      const vw = mapViewport.clientWidth;
+      const vh = mapViewport.clientHeight;
+      const aspect = mapNativeW / mapNativeH;
+
+      if (vw / vh > aspect) {
+        baseHeight = vh;
+        baseWidth = vh * aspect;
+      } else {
+        baseWidth = vw;
+        baseHeight = vw / aspect;
+      }
+
+      if (resetPan) {
+        scale = 1;
+        panX = (vw - baseWidth) / 2;
+        panY = (vh - baseHeight) / 2;
+      }
+      applyTransform();
+    }
+
+    function resizeOverlay() {
+      const dpr = window.devicePixelRatio || 1;
+      const w = mapViewport.clientWidth;
+      const h = mapViewport.clientHeight;
+      overlay.width = w * dpr;
+      overlay.height = h * dpr;
+      overlay.style.width = w + "px";
+      overlay.style.height = h + "px";
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      if (mapNativeW) {
+        const savedScale = scale;
+        const savedPanX = panX;
+        const savedPanY = panY;
+        fitMapToViewport(false);
+        scale = savedScale;
+        panX = savedPanX;
+        panY = savedPanY;
+        clampPan();
+        applyTransform();
+      }
+    }
+
+    function viewportPoint(clientX, clientY) {
+      const r = mapViewport.getBoundingClientRect();
+      return { x: clientX - r.left, y: clientY - r.top };
+    }
+
+    function screenToUV(sx, sy) {
+      const mapW = baseWidth * scale;
+      const mapH = baseHeight * scale;
+      const mx = sx - panX;
+      const my = sy - panY;
+      if (mx < 0 || my < 0 || mx > mapW || my > mapH) return null;
+      return { u: mx / mapW, v: my / mapH };
+    }
+
+    function uvToScreen(uv) {
+      return {
+        x: panX + uv.u * baseWidth * scale,
+        y: panY + uv.v * baseHeight * scale,
+      };
+    }
+
+    function clientToMap(clientX, clientY) {
+      const vp = viewportPoint(clientX, clientY);
+      const uv = screenToUV(vp.x, vp.y);
+      if (!uv) return null;
+      return uv;
+    }
+
+    function uvDistanceMeters(p1, p2) {
+      const dx = (p2.u - p1.u) * mapNativeW;
+      const dy = (p2.v - p1.v) * mapNativeH;
+      return Math.hypot(dx, dy) * (currentMap.sizeM / mapNativeW);
+    }
+
+    function formatMeters(m) {
+      if (!Number.isFinite(m)) return "—";
+      return Math.round(m).toString();
+    }
+
+    function updateMortarStatus(meters) {
+      mortarStatus.className = "mortar-status";
+      if (!Number.isFinite(meters)) {
+        mortarStatus.classList.add("idle");
+        mortarStatus.textContent = `Súng cối: tầm bắn ~${MORTAR_MIN}m – ${MORTAR_MAX}m`;
+        return;
+      }
+      if (meters < MORTAR_MIN) {
+        mortarStatus.classList.add("too-close");
+        mortarStatus.textContent = `Quá gần (${MORTAR_MIN}m tối thiểu) — lùi hoặc dùng lựu`;
+      } else if (meters > MORTAR_MAX) {
+        mortarStatus.classList.add("too-far");
+        mortarStatus.textContent = `Quá xa (>${MORTAR_MAX}m) — tiến gần hơn`;
+      } else {
+        mortarStatus.classList.add("in-range");
+        mortarStatus.textContent = "Trong tầm súng cối — có thể bắn";
+      }
+    }
+
+    function clampPan() {
+      const vw = mapViewport.clientWidth;
+      const vh = mapViewport.clientHeight;
+      const mapW = baseWidth * scale;
+      const mapH = baseHeight * scale;
+      const margin = 40;
+
+      if (mapW <= vw) {
+        panX = (vw - mapW) / 2;
+      } else {
+        panX = Math.min(margin, Math.max(vw - mapW - margin, panX));
+      }
+      if (mapH <= vh) {
+        panY = (vh - mapH) / 2;
+      } else {
+        panY = Math.min(margin, Math.max(vh - mapH - margin, panY));
+      }
+    }
+
+    function zoomAt(sx, sy, factor) {
+      const newScale = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, scale * factor));
+      if (newScale === scale) return;
+      const mapW = baseWidth * scale;
+      const mapH = baseHeight * scale;
+      const u = (sx - panX) / mapW;
+      const v = (sy - panY) / mapH;
+      scale = newScale;
+      panX = sx - u * baseWidth * scale;
+      panY = sy - v * baseHeight * scale;
+      clampPan();
+      applyTransform();
+    }
+
+    function zoomBy(factor) {
+      const vw = mapViewport.clientWidth;
+      const vh = mapViewport.clientHeight;
+      zoomAt(vw / 2, vh / 2, factor);
+    }
+
+    function resetZoom() {
+      fitMapToViewport(true);
+    }
+
+    function drawGrid() {
+      if (!showGrid.checked || baseWidth <= 0) return;
+      const cells = currentMap.sizeM / 100;
+
+      ctx.save();
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.14)";
+      ctx.lineWidth = 1;
+      for (let i = 0; i <= cells; i++) {
+        const u = i / cells;
+        const top = uvToScreen({ u, v: 0 });
+        const bottom = uvToScreen({ u, v: 1 });
+        const left = uvToScreen({ u: 0, v: i / cells });
+        const right = uvToScreen({ u: 1, v: i / cells });
+        ctx.beginPath();
+        ctx.moveTo(top.x, top.y);
+        ctx.lineTo(bottom.x, bottom.y);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(left.x, left.y);
+        ctx.lineTo(right.x, right.y);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    function drawMarker(canvasPt, color, label) {
+      ctx.save();
+      ctx.fillStyle = color;
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(canvasPt.x, canvasPt.y, 7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      if (label) {
+        ctx.font = "bold 11px Segoe UI, sans-serif";
+        ctx.fillStyle = "#fff";
+        ctx.strokeStyle = "#000";
+        ctx.lineWidth = 3;
+        ctx.strokeText(label, canvasPt.x + 10, canvasPt.y - 8);
+        ctx.fillText(label, canvasPt.x + 10, canvasPt.y - 8);
+      }
+      ctx.restore();
+    }
+
+    function drawLine(p1, p2, color, dashed) {
+      const c1 = uvToScreen(p1);
+      const c2 = uvToScreen(p2);
+      ctx.save();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2.5;
+      if (dashed) ctx.setLineDash([6, 4]);
+      ctx.beginPath();
+      ctx.moveTo(c1.x, c1.y);
+      ctx.lineTo(c2.x, c2.y);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawSecretRooms() {
+      if (!showSecrets.checked) return;
+      const rooms = getSecretRooms(currentMap.id);
+      if (!rooms.length) return;
+
+      ctx.save();
+      rooms.forEach((room, i) => {
+        const pt = uvToScreen(room);
+        ctx.fillStyle = "rgba(168, 85, 247, 0.95)";
+        ctx.strokeStyle = "#fff";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(pt.x, pt.y - 9);
+        ctx.lineTo(pt.x + 8, pt.y + 6);
+        ctx.lineTo(pt.x - 8, pt.y + 6);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.font = "bold 10px Segoe UI, sans-serif";
+        ctx.fillStyle = "#fff";
+        ctx.strokeStyle = "#000";
+        ctx.lineWidth = 3;
+        const label = String(i + 1);
+        ctx.strokeText(label, pt.x + 10, pt.y + 4);
+        ctx.fillText(label, pt.x + 10, pt.y + 4);
+      });
+      ctx.restore();
+    }
+
+    function redraw() {
+      const w = mapViewport.clientWidth;
+      const h = mapViewport.clientHeight;
+      ctx.clearRect(0, 0, w, h);
+      if (baseWidth <= 0) return;
+
+      drawGrid();
+      drawSecretRooms();
+
+      if (pointA) {
+        drawMarker(uvToScreen(pointA), "#3dd68c", "Bạn");
+      }
+      if (pointB) {
+        drawMarker(uvToScreen(pointB), "#ff6b6b", "Địch");
+      }
+      if (pointA && pointB) {
+        drawLine(pointA, pointB, "#f5a623", false);
+        const mid = uvToScreen({
+          u: (pointA.u + pointB.u) / 2,
+          v: (pointA.v + pointB.v) / 2,
+        });
+        const dist = uvDistanceMeters(pointA, pointB);
+        ctx.save();
+        ctx.font = "bold 13px Segoe UI, sans-serif";
+        ctx.fillStyle = "#f5a623";
+        ctx.strokeStyle = "#000";
+        ctx.lineWidth = 3;
+        const text = formatMeters(dist) + " m";
+        ctx.strokeText(text, mid.x + 8, mid.y - 8);
+        ctx.fillText(text, mid.x + 8, mid.y - 8);
+        ctx.restore();
+      } else if (pointA && dragCurrent && dragging) {
+        drawLine(pointA, dragCurrent, "rgba(245, 166, 35, 0.7)", true);
+        const dist = uvDistanceMeters(pointA, dragCurrent);
+        distanceValue.textContent = formatMeters(dist);
+        updateMortarStatus(dist);
+      }
+    }
+
+    function finishMeasure(endPoint) {
+      pointB = endPoint;
+      dragging = false;
+      dragCurrent = null;
+      const dist = uvDistanceMeters(pointA, pointB);
+      distanceValue.textContent = formatMeters(dist);
+      updateMortarStatus(dist);
+      coordsText.textContent =
+        `Điểm đứng → mục tiêu | Độ dài: ${formatMeters(dist)} m`;
+      redraw();
+    }
+
+    function loadMap(map) {
+      const token = ++mapLoadToken;
+      currentMap = map;
+      loading.classList.remove("hidden");
+      loading.textContent = "Đang tải bản đồ…";
+      pointA = null;
+      pointB = null;
+      dragging = false;
+      dragCurrent = null;
+      distanceValue.textContent = "—";
+      updateMortarStatus(NaN);
+      coordsText.textContent = "";
+      hdReady = false;
+      hdLoading = false;
+      activeMapImage = null;
+      mapNativeW = 0;
+      mapNativeH = 0;
+      updateMapInfo();
+      renderSecretList();
+
+      mapImageLow.onload = () => {
+        if (token !== mapLoadToken) return;
+        activeMapImage = mapImageLow;
+        mapNativeW = mapImageLow.naturalWidth;
+        mapNativeH = mapImageLow.naturalHeight;
+        loading.classList.add("hidden");
+        fitMapToViewport(true);
+        resizeOverlay();
+        updateMapInfo();
+        if (hdLoading) {
+          loading.textContent = "Đang tải bản đồ HD (~90MB)…";
+          loading.classList.remove("hidden");
+        }
+      };
+
+      mapImageLow.onerror = () => {
+        if (token !== mapLoadToken) return;
+        loading.textContent =
+          "Không tải được ảnh map (cần internet). Thử tải lại trang.";
+      };
+
+      mapImageHigh.onload = () => {
+        if (token !== mapLoadToken) return;
+        activeMapImage = mapImageHigh;
+        mapNativeW = mapImageHigh.naturalWidth;
+        mapNativeH = mapImageHigh.naturalHeight;
+        hdReady = true;
+        hdLoading = false;
+        loading.classList.add("hidden");
+        applyTransform();
+        updateMapInfo();
+      };
+
+      mapImageHigh.onerror = () => {
+        if (token !== mapLoadToken) return;
+        hdLoading = false;
+        loading.classList.add("hidden");
+        updateMapInfo();
+        updateZoomLabel();
+      };
+
+      mapImageLow.src = map.imgLow;
+      hdLoading = true;
+      mapImageHigh.src = map.imgHigh;
+    }
+
+    mapSelect.addEventListener("change", () => {
+      loadMap(getMapById(mapSelect.value));
+    });
+
+    mapViewport.addEventListener("wheel", (e) => {
+      e.preventDefault();
+      const vp = viewportPoint(e.clientX, e.clientY);
+      const factor = e.deltaY < 0 ? ZOOM_STEP : 1 / ZOOM_STEP;
+      zoomAt(vp.x, vp.y, factor);
+    }, { passive: false });
+
+    mapViewport.addEventListener("mousedown", (e) => {
+      if (isPanTrigger(e)) {
+        e.preventDefault();
+        panning = true;
+        panStart = { x: e.clientX, y: e.clientY, panX, panY };
+        mapViewport.classList.add("panning");
+        return;
+      }
+      if (!isMeasureTrigger(e)) return;
+      const p = clientToMap(e.clientX, e.clientY);
+      if (!p) return;
+      e.preventDefault();
+      startMeasure(p);
+    });
+
+    mapViewport.addEventListener("contextmenu", (e) => e.preventDefault());
+
+    window.addEventListener("mousemove", (e) => {
+      if (panning && panStart) {
+        panX = panStart.panX + (e.clientX - panStart.x);
+        panY = panStart.panY + (e.clientY - panStart.y);
+        clampPan();
+        applyTransform();
+        return;
+      }
+      if (!dragging || !pointA) return;
+      const p = clientToMap(e.clientX, e.clientY);
+      if (!p) return;
+      dragCurrent = p;
+      const dist = uvDistanceMeters(pointA, dragCurrent);
+      distanceValue.textContent = formatMeters(dist);
+      updateMortarStatus(dist);
+      redraw();
+    });
+
+    window.addEventListener("mouseup", (e) => {
+      if (panning) {
+        panning = false;
+        panStart = null;
+        mapViewport.classList.remove("panning");
+        return;
+      }
+      if (!dragging) return;
+      mapViewport.classList.remove("measuring");
+      const p = clientToMap(e.clientX, e.clientY);
+      if (p && pointA) {
+        finishMeasure(p);
+      } else {
+        dragging = false;
+        dragCurrent = null;
+        redraw();
+      }
+    });
+
+    mapViewport.addEventListener("touchstart", (e) => {
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        dragging = false;
+        const t0 = e.touches[0];
+        const t1 = e.touches[1];
+        const p0 = viewportPoint(t0.clientX, t0.clientY);
+        const p1 = viewportPoint(t1.clientX, t1.clientY);
+        pinchStart = {
+          dist: Math.hypot(p1.x - p0.x, p1.y - p0.y),
+          scale,
+          midX: (p0.x + p1.x) / 2,
+          midY: (p0.y + p1.y) / 2,
+          panX,
+          panY,
+        };
+        return;
+      }
+      if (e.touches.length !== 1) return;
+      const t = e.touches[0];
+      e.preventDefault();
+      if (toolMode === "measure") {
+        const p = clientToMap(t.clientX, t.clientY);
+        if (!p) return;
+        startMeasure(p);
+        return;
+      }
+      panning = true;
+      panStart = { x: t.clientX, y: t.clientY, panX, panY };
+      mapViewport.classList.add("panning");
+    }, { passive: false });
+
+    mapViewport.addEventListener("touchmove", (e) => {
+      if (e.touches.length === 2 && pinchStart) {
+        e.preventDefault();
+        const t0 = e.touches[0];
+        const t1 = e.touches[1];
+        const p0 = viewportPoint(t0.clientX, t0.clientY);
+        const p1 = viewportPoint(t1.clientX, t1.clientY);
+        const dist = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+        const midX = (p0.x + p1.x) / 2;
+        const midY = (p0.y + p1.y) / 2;
+        const newScale = Math.min(
+          MAX_ZOOM,
+          Math.max(MIN_ZOOM, pinchStart.scale * (dist / pinchStart.dist))
+        );
+        const mapW = baseWidth * pinchStart.scale;
+        const mapH = baseHeight * pinchStart.scale;
+        const u = (pinchStart.midX - pinchStart.panX) / mapW;
+        const v = (pinchStart.midY - pinchStart.panY) / mapH;
+        scale = newScale;
+        panX = midX - u * baseWidth * scale;
+        panY = midY - v * baseHeight * scale;
+        clampPan();
+        applyTransform();
+        return;
+      }
+      if (panning && panStart && e.touches.length === 1) {
+        e.preventDefault();
+        const t = e.touches[0];
+        panX = panStart.panX + (t.clientX - panStart.x);
+        panY = panStart.panY + (t.clientY - panStart.y);
+        clampPan();
+        applyTransform();
+        return;
+      }
+      if (!dragging || e.touches.length !== 1) return;
+      e.preventDefault();
+      const t = e.touches[0];
+      const p = clientToMap(t.clientX, t.clientY);
+      if (!p) return;
+      dragCurrent = p;
+      const dist = uvDistanceMeters(pointA, dragCurrent);
+      distanceValue.textContent = formatMeters(dist);
+      updateMortarStatus(dist);
+      redraw();
+    }, { passive: false });
+
+    mapViewport.addEventListener("touchend", (e) => {
+      if (pinchStart && e.touches.length < 2) {
+        pinchStart = null;
+        return;
+      }
+      if (panning && e.touches.length === 0) {
+        panning = false;
+        panStart = null;
+        mapViewport.classList.remove("panning");
+        return;
+      }
+      if (!dragging) return;
+      mapViewport.classList.remove("measuring");
+      const t = e.changedTouches[0];
+      const p = clientToMap(t.clientX, t.clientY);
+      if (p && pointA) finishMeasure(p);
+    });
+
+    btnToolPan.addEventListener("click", () => setToolMode("pan"));
+    btnToolMeasure.addEventListener("click", () => setToolMode("measure"));
+    showSecrets.addEventListener("change", redraw);
+
+    function bindZoomButtons(id, fn) {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener("click", fn);
+    }
+    bindZoomButtons("btnZoomIn", () => zoomBy(ZOOM_STEP));
+    bindZoomButtons("btnZoomOut", () => zoomBy(1 / ZOOM_STEP));
+    bindZoomButtons("btnZoomInFloat", () => zoomBy(ZOOM_STEP));
+    bindZoomButtons("btnZoomOutFloat", () => zoomBy(1 / ZOOM_STEP));
+    bindZoomButtons("btnZoomReset", resetZoom);
+    bindZoomButtons("btnZoomFit", resetZoom);
+
+    document.getElementById("btnClear").addEventListener("click", () => {
+      pointA = null;
+      pointB = null;
+      dragging = false;
+      dragCurrent = null;
+      distanceValue.textContent = "—";
+      updateMortarStatus(NaN);
+      coordsText.textContent = "";
+      redraw();
+    });
+
+    showGrid.addEventListener("change", redraw);
+
+    window.addEventListener("resize", resizeOverlay);
+
+    setToolMode("pan");
+    loadMap(MAPS[0]);
+  </script>
+</body>
+</html>

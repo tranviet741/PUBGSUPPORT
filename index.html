@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PUBG PC — Tính khoảng cách súng cối</title>
+  <link rel="stylesheet" href="css/main.css" />
+</head>
+<body>
+  <header>
+    <div class="header-text">
+      <h1>PUBG PC — Tính khoảng cách súng cối</h1>
+      <p>Chọn vị trí đứng trên map, kéo tới mục tiêu — tool tự quy đổi ra mét theo lưới map trong game.</p>
+    </div>
+    <div class="header-actions">
+      <span class="user-badge" id="userBadge"></span>
+      <button type="button" class="secondary btn-logout" id="btnLogout">Đăng xuất</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside>
+      <div>
+        <label for="mapSelect">Bản đồ</label>
+        <select id="mapSelect"></select>
+      </div>
+
+      <div class="map-info" id="mapInfo"></div>
+
+      <div class="distance-box">
+        <div class="value" id="distanceValue">—</div>
+        <div class="unit">mét (m)</div>
+        <div class="mortar-status idle" id="mortarStatus">
+          Súng cối: tầm bắn ~121m – 700m
+        </div>
+      </div>
+
+      <button type="button" class="primary" id="btnClear">Xóa đo / đo lại</button>
+
+      <div>
+        <label>Công cụ</label>
+        <div class="tool-row" style="margin-top:0.35rem">
+          <button type="button" class="active" id="btnToolPan" title="Kéo map">✋ Di chuyển</button>
+          <button type="button" id="btnToolMeasure" title="Đo khoảng cách">📏 Đo cối</button>
+        </div>
+        <p class="hint" style="margin-top:0.4rem;font-size:0.78rem">
+          <strong>Chuột trái kéo</strong> = di chuyển map (bàn tay)<br />
+          <strong>Chuột phải kéo</strong> = đo khoảng cách cối<br />
+          <strong>Con lăn</strong> = zoom · Nút Đo cối = dùng trên điện thoại
+        </p>
+      </div>
+
+      <div>
+        <label>Zoom map</label>
+        <div class="btn-row" style="margin-top:0.35rem">
+          <button type="button" id="btnZoomOut" title="Thu nhỏ">−</button>
+          <button type="button" id="btnZoomReset" title="Vừa khung">100%</button>
+          <button type="button" id="btnZoomIn" title="Phóng to">+</button>
+        </div>
+      </div>
+
+      <label class="toggle-row">
+        <input type="checkbox" id="showGrid" checked />
+        Hiện lưới 100m
+      </label>
+
+      <label class="toggle-row">
+        <input type="checkbox" id="showSecrets" checked />
+        Hiện hầm bí mật
+      </label>
+
+      <div id="secretSection">
+        <label>Hầm bí mật — bấm để zoom tới</label>
+        <div class="secret-list" id="secretList"></div>
+        <button type="button" class="primary" id="btnOpenBunker" style="margin-top:0.5rem">
+          🗺️ Xem bản đồ hầm bí mật
+        </button>
+      </div>
+
+      <div class="hint">
+        <strong>Cách dùng</strong>
+        <ol>
+          <li>Mở map trong game (phím <kbd>M</kbd>), căn vị trí giống bản đồ bên dưới.</li>
+          <li><strong>Zoom</strong> (con lăn hoặc nút +/−) để nhìn rõ vị trí.</li>
+          <li><strong>Chuột trái kéo</strong> để di chuyển map (bàn tay).</li>
+          <li><strong>Chuột phải giữ + kéo</strong> từ vị trí bạn → địch để đo mét.</li>
+          <li>Bật <strong>hầm bí mật</strong> để xem vị trí phòng (nếu map có).</li>
+        </ol>
+        <p style="margin-top:0.5rem">Mỗi ô vuông trắng trên map game = <strong>100m</strong>. Map HD (~8K) tự tải nền để zoom nét hơn.</p>
+      </div>
+    </aside>
+
+    <main>
+      <p class="zoom-hint-bar">Chuột trái = di chuyển · Chuột phải = đo cối · Con lăn = zoom</p>
+      <div class="map-viewport" id="mapViewport">
+        <div class="map-stage" id="mapStage">
+          <canvas id="mapCanvas"></canvas>
+        </div>
+        <canvas id="overlay"></canvas>
+        <div class="zoom-toolbar">
+          <button type="button" id="btnZoomInFloat" title="Phóng to">+</button>
+          <button type="button" id="btnZoomOutFloat" title="Thu nhỏ">−</button>
+          <button type="button" id="btnZoomFit" title="Vừa khung">⊡</button>
+        </div>
+        <div class="zoom-label" id="zoomLabel">100%</div>
+        <div class="loading" id="loading">Đang tải bản đồ…</div>
+      </div>
+      <p class="coords" id="coordsText"></p>
+    </main>
+  </div>
+
+  <footer>
+    Công cụ hỗ trợ offline — không can thiệp game. Ảnh map HD từ kho chính thức PUBG API.
+  </footer>
+
+  <!-- Modal xem hầm bí mật -->
+  <div class="modal-overlay" id="bunkerModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>🗺️ Bản đồ hầm bí mật</h2>
+        <button type="button" class="modal-close" id="btnCloseBunker" title="Đóng">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-map-select">
+          <label for="bunkerMapSelect">Chọn map</label>
+          <select id="bunkerMapSelect"></select>
+        </div>
+        <div class="modal-image-wrap">
+          <p class="modal-placeholder" id="bunkerPlaceholder">Chọn map để xem ảnh hầm bí mật.</p>
+          <img id="bunkerImage" alt="Bản đồ hầm bí mật" style="display:none" />
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/config.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
