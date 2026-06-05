@@ -1,7 +1,9 @@
-const AUTH_USERS_KEY = "pubg_tool_users";
 const AUTH_SESSION_KEY = "pubg_tool_session";
 const ADMIN_USER = "admin";
 const ADMIN_PASS = "pass123qwe!@#";
+const USERS_TABLE = "pubg_users";
+
+let supabaseClient = null;
 
 function hashPassword(password) {
   let hash = 0;
@@ -12,29 +14,22 @@ function hashPassword(password) {
   return "h" + Math.abs(hash).toString(36);
 }
 
-function getUsers() {
-  try {
-    return JSON.parse(localStorage.getItem(AUTH_USERS_KEY)) || [];
-  } catch {
-    return [];
+function isSupabaseConfigured() {
+  return (
+    typeof SUPABASE_URL === "string" &&
+    typeof SUPABASE_ANON_KEY === "string" &&
+    !SUPABASE_URL.includes("YOUR_PROJECT") &&
+    !SUPABASE_ANON_KEY.includes("YOUR_ANON") &&
+    SUPABASE_URL.startsWith("https://")
+  );
+}
+
+function getSupabase() {
+  if (!isSupabaseConfigured()) return null;
+  if (!supabaseClient && typeof supabase !== "undefined") {
+    supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   }
-}
-
-function saveUsers(users) {
-  localStorage.setItem(AUTH_USERS_KEY, JSON.stringify(users));
-}
-
-function ensureAdminUser() {
-  const users = getUsers().filter((u) => u.username !== ADMIN_USER);
-  const existing = getUsers().find((u) => u.username === ADMIN_USER);
-  users.unshift({
-    username: ADMIN_USER,
-    password: hashPassword(ADMIN_PASS),
-    role: "admin",
-    createdAt: existing?.createdAt || Date.now(),
-    protected: true,
-  });
-  saveUsers(users);
+  return supabaseClient;
 }
 
 function getSession() {
@@ -61,10 +56,55 @@ function isAdmin() {
   return session?.role === "admin" && session?.username === ADMIN_USER;
 }
 
-function createUserByAdmin(username, password) {
+function getConfigError() {
+  if (!isSupabaseConfigured()) {
+    return "Chưa cấu hình Supabase. Điền SUPABASE_URL và SUPABASE_ANON_KEY trong js/supabase-config.js";
+  }
+  if (!getSupabase()) {
+    return "Không tải được thư viện Supabase. Kiểm tra kết nối internet.";
+  }
+  return null;
+}
+
+async function loginUser(username, password) {
+  const name = username.trim().toLowerCase();
+
+  if (name === ADMIN_USER) {
+    if (password !== ADMIN_PASS) {
+      return { ok: false, message: "Sai tên đăng nhập hoặc mật khẩu." };
+    }
+    setSession({ username: ADMIN_USER, role: "admin" });
+    return { ok: true, message: "Đăng nhập thành công!" };
+  }
+
+  const configErr = getConfigError();
+  if (configErr) return { ok: false, message: configErr };
+
+  const db = getSupabase();
+  const { data, error } = await db
+    .from(USERS_TABLE)
+    .select("username, password_hash, role")
+    .eq("username", name)
+    .maybeSingle();
+
+  if (error) {
+    return { ok: false, message: "Lỗi kết nối database: " + error.message };
+  }
+  if (!data || data.password_hash !== hashPassword(password)) {
+    return { ok: false, message: "Sai tên đăng nhập hoặc mật khẩu." };
+  }
+
+  setSession({ username: data.username, role: data.role });
+  return { ok: true, message: "Đăng nhập thành công!" };
+}
+
+async function createUserByAdmin(username, password) {
   if (!isAdmin()) {
     return { ok: false, message: "Chỉ admin mới được tạo tài khoản." };
   }
+
+  const configErr = getConfigError();
+  if (configErr) return { ok: false, message: configErr };
 
   const name = username.trim().toLowerCase();
   if (name === ADMIN_USER) {
@@ -77,77 +117,78 @@ function createUserByAdmin(username, password) {
     return { ok: false, message: "Mật khẩu tối thiểu 6 ký tự." };
   }
 
-  const users = getUsers();
-  if (users.some((u) => u.username === name)) {
-    return { ok: false, message: "Tên đăng nhập đã tồn tại." };
+  const db = getSupabase();
+  const { error } = await db.from(USERS_TABLE).insert({
+    username: name,
+    password_hash: hashPassword(password),
+    role: "user",
+  });
+
+  if (error) {
+    if (error.code === "23505") {
+      return { ok: false, message: "Tên đăng nhập đã tồn tại." };
+    }
+    return { ok: false, message: "Lỗi tạo tài khoản: " + error.message };
   }
 
-  users.push({
-    username: name,
-    password: hashPassword(password),
-    role: "user",
-    createdAt: Date.now(),
-  });
-  saveUsers(users);
   return { ok: true, message: `Đã tạo tài khoản "${name}".` };
 }
 
-function deleteUserByAdmin(username) {
+async function deleteUserByAdmin(username) {
   if (!isAdmin()) {
     return { ok: false, message: "Chỉ admin mới được xóa tài khoản." };
   }
+
+  const configErr = getConfigError();
+  if (configErr) return { ok: false, message: configErr };
 
   const name = username.trim().toLowerCase();
   if (name === ADMIN_USER) {
     return { ok: false, message: "Không thể xóa tài khoản admin." };
   }
 
-  const users = getUsers();
-  const idx = users.findIndex((u) => u.username === name);
-  if (idx === -1) {
-    return { ok: false, message: "Tài khoản không tồn tại." };
+  const db = getSupabase();
+  const { error } = await db.from(USERS_TABLE).delete().eq("username", name);
+
+  if (error) {
+    return { ok: false, message: "Lỗi xóa tài khoản: " + error.message };
   }
 
-  users.splice(idx, 1);
-  saveUsers(users);
   return { ok: true, message: `Đã xóa tài khoản "${name}".` };
 }
 
-function listUsersForAdmin() {
+async function listUsersForAdmin() {
   if (!isAdmin()) return [];
-  return getUsers().map((u) => ({
+
+  const adminEntry = {
+    username: ADMIN_USER,
+    role: "admin",
+    createdAt: null,
+    protected: true,
+  };
+
+  const configErr = getConfigError();
+  if (configErr) return [adminEntry];
+
+  const db = getSupabase();
+  const { data, error } = await db
+    .from(USERS_TABLE)
+    .select("username, role, created_at")
+    .order("created_at", { ascending: true });
+
+  if (error) return [adminEntry];
+
+  const users = (data || []).map((u) => ({
     username: u.username,
     role: u.role,
-    createdAt: u.createdAt,
-    protected: !!u.protected,
+    createdAt: u.created_at ? new Date(u.created_at).getTime() : null,
+    protected: false,
   }));
-}
 
-function loginUser(username, password) {
-  const name = username.trim().toLowerCase();
-
-  if (name === ADMIN_USER) {
-    if (password !== ADMIN_PASS) {
-      return { ok: false, message: "Sai tên đăng nhập hoặc mật khẩu." };
-    }
-    ensureAdminUser();
-    setSession({ username: ADMIN_USER, role: "admin" });
-    return { ok: true, message: "Đăng nhập thành công!" };
-  }
-
-  const users = getUsers();
-  const user = users.find((u) => u.username === name);
-
-  if (!user || user.password !== hashPassword(password)) {
-    return { ok: false, message: "Sai tên đăng nhập hoặc mật khẩu." };
-  }
-
-  setSession(user);
-  return { ok: true, message: "Đăng nhập thành công!" };
+  return [adminEntry, ...users];
 }
 
 function requireAuth() {
-  ensureAdminUser();
   if (!getSession()) {
     window.location.href = "login.html";
     return false;
@@ -156,7 +197,6 @@ function requireAuth() {
 }
 
 function requireAdmin() {
-  ensureAdminUser();
   if (!isAdmin()) {
     window.location.href = "index.html";
     return false;
@@ -168,5 +208,3 @@ function logout() {
   clearSession();
   window.location.href = "login.html";
 }
-
-ensureAdminUser();

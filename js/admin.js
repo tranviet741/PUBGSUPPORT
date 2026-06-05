@@ -5,6 +5,12 @@ document.getElementById("btnLogout").addEventListener("click", logout);
 const adminMessage = document.getElementById("adminMessage");
 const createUserForm = document.getElementById("createUserForm");
 const userTableBody = document.getElementById("userTableBody");
+const createBtn = createUserForm.querySelector('button[type="submit"]');
+
+const configErr = getConfigError();
+if (configErr) {
+  showMessage(configErr, "error");
+}
 
 function showMessage(text, type) {
   adminMessage.textContent = text;
@@ -16,9 +22,16 @@ function formatDate(ts) {
   return new Date(ts).toLocaleDateString("vi-VN");
 }
 
-function renderUserTable() {
-  const users = listUsersForAdmin();
+async function renderUserTable() {
+  userTableBody.innerHTML = '<tr><td colspan="4" style="color:var(--muted)">Đang tải…</td></tr>';
+
+  const users = await listUsersForAdmin();
   userTableBody.innerHTML = "";
+
+  if (users.length === 0) {
+    userTableBody.innerHTML = '<tr><td colspan="4" style="color:var(--muted)">Chưa có tài khoản.</td></tr>';
+    return;
+  }
 
   users.forEach((user) => {
     const tr = document.createElement("tr");
@@ -37,11 +50,16 @@ function renderUserTable() {
     btn.textContent = "Xóa";
     btn.disabled = user.protected;
     if (!user.protected) {
-      btn.addEventListener("click", () => {
+      btn.addEventListener("click", async () => {
         if (!confirm(`Xóa tài khoản "${user.username}"?`)) return;
-        const result = deleteUserByAdmin(user.username);
+        btn.disabled = true;
+        const result = await deleteUserByAdmin(user.username);
         showMessage(result.message, result.ok ? "success" : "error");
-        if (result.ok) renderUserTable();
+        if (result.ok) {
+          await renderUserTable();
+        } else {
+          btn.disabled = false;
+        }
       });
     }
     actionCell.appendChild(btn);
@@ -49,7 +67,7 @@ function renderUserTable() {
   });
 }
 
-createUserForm.addEventListener("submit", (e) => {
+createUserForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   const pass = document.getElementById("newPass").value;
   const pass2 = document.getElementById("newPass2").value;
@@ -57,14 +75,22 @@ createUserForm.addEventListener("submit", (e) => {
     showMessage("Mật khẩu nhập lại không khớp.", "error");
     return;
   }
-  const result = createUserByAdmin(
+
+  createBtn.disabled = true;
+  createBtn.textContent = "Đang tạo…";
+
+  const result = await createUserByAdmin(
     document.getElementById("newUser").value,
     pass
   );
+
+  createBtn.disabled = false;
+  createBtn.textContent = "Tạo tài khoản";
   showMessage(result.message, result.ok ? "success" : "error");
+
   if (result.ok) {
     createUserForm.reset();
-    renderUserTable();
+    await renderUserTable();
   }
 });
 
