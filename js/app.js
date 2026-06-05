@@ -3,9 +3,13 @@ if (!requireAuth()) throw new Error("Unauthorized");
 const session = getSession();
 const userBadge = document.getElementById("userBadge");
 const btnLogout = document.getElementById("btnLogout");
+const btnAdmin = document.getElementById("btnAdmin");
 
 if (userBadge && session) {
   userBadge.textContent = `${session.username} (${session.role})`;
+}
+if (btnAdmin && isAdmin()) {
+  btnAdmin.style.display = "inline-block";
 }
 if (btnLogout) {
   btnLogout.addEventListener("click", logout);
@@ -28,7 +32,6 @@ const mortarStatus = document.getElementById("mortarStatus");
 const mapInfo = document.getElementById("mapInfo");
 const coordsText = document.getElementById("coordsText");
 const showGrid = document.getElementById("showGrid");
-const showSecrets = document.getElementById("showSecrets");
 const secretList = document.getElementById("secretList");
 const btnToolPan = document.getElementById("btnToolPan");
 const btnToolMeasure = document.getElementById("btnToolMeasure");
@@ -379,35 +382,6 @@ function drawLine(p1, p2, color, dashed) {
   ctx.restore();
 }
 
-function drawSecretRooms() {
-  if (!showSecrets.checked) return;
-  const rooms = getSecretRooms(currentMap.id);
-  if (!rooms.length) return;
-
-  ctx.save();
-  rooms.forEach((room, i) => {
-    const pt = uvToScreen(room);
-    ctx.fillStyle = "rgba(168, 85, 247, 0.95)";
-    ctx.strokeStyle = "#fff";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(pt.x, pt.y - 9);
-    ctx.lineTo(pt.x + 8, pt.y + 6);
-    ctx.lineTo(pt.x - 8, pt.y + 6);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-    ctx.font = "bold 10px Segoe UI, sans-serif";
-    ctx.fillStyle = "#fff";
-    ctx.strokeStyle = "#000";
-    ctx.lineWidth = 3;
-    const label = String(i + 1);
-    ctx.strokeText(label, pt.x + 10, pt.y + 4);
-    ctx.fillText(label, pt.x + 10, pt.y + 4);
-  });
-  ctx.restore();
-}
-
 function redraw() {
   const w = mapViewport.clientWidth;
   const h = mapViewport.clientHeight;
@@ -415,7 +389,6 @@ function redraw() {
   if (baseWidth <= 0) return;
 
   drawGrid();
-  drawSecretRooms();
 
   if (pointA) {
     drawMarker(uvToScreen(pointA), "#3dd68c", "Bạn");
@@ -688,7 +661,6 @@ mapViewport.addEventListener("touchend", (e) => {
 
 btnToolPan.addEventListener("click", () => setToolMode("pan"));
 btnToolMeasure.addEventListener("click", () => setToolMode("measure"));
-showSecrets.addEventListener("change", redraw);
 
 function bindZoomButtons(id, fn) {
   const el = document.getElementById(id);

@@ -64,6 +64,22 @@ header .header-text p {
   font-size: 0.85rem;
 }
 
+.btn-link {
+  display: inline-block;
+  padding: 0.45rem 0.85rem;
+  font-size: 0.85rem;
+  color: var(--text);
+  text-decoration: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+}
+
+.btn-link:hover {
+  background: #243044;
+  border-color: var(--accent);
+}
+
 .layout {
   display: grid;
   grid-template-columns: 280px 1fr;

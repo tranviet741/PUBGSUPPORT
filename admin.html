@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quản lý tài khoản — PUBG Tool</title>
+  <link rel="stylesheet" href="css/main.css" />
+  <link rel="stylesheet" href="css/auth.css" />
+  <link rel="stylesheet" href="css/admin.css" />
+</head>
+<body>
+  <header>
+    <div class="header-text">
+      <h1>Quản lý tài khoản</h1>
+      <p>Chỉ admin mới truy cập được trang này.</p>
+    </div>
+    <div class="header-actions">
+      <a href="index.html" class="btn-link">← Về tool</a>
+      <button type="button" class="secondary btn-logout" id="btnLogout">Đăng xuất</button>
+    </div>
+  </header>
+
+  <main class="admin-page">
+    <section class="admin-card">
+      <h2>Tạo tài khoản mới</h2>
+      <div class="auth-message" id="adminMessage"></div>
+      <form class="admin-form" id="createUserForm">
+        <div class="field">
+          <label for="newUser">Tên đăng nhập</label>
+          <input type="text" id="newUser" required />
+        </div>
+        <div class="field">
+          <label for="newPass">Mật khẩu</label>
+          <input type="password" id="newPass" required />
+        </div>
+        <div class="field">
+          <label for="newPass2">Nhập lại mật khẩu</label>
+          <input type="password" id="newPass2" required />
+        </div>
+        <button type="submit" class="primary">Tạo tài khoản</button>
+      </form>
+    </section>
+
+    <section class="admin-card">
+      <h2>Danh sách tài khoản</h2>
+      <div class="user-table-wrap">
+        <table class="user-table" id="userTable">
+          <thead>
+            <tr>
+              <th>Tên đăng nhập</th>
+              <th>Vai trò</th>
+              <th>Ngày tạo</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="userTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="js/auth.js"></script>
+  <script src="js/admin.js"></script>
+</body>
+</html>
