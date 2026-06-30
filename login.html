@@ -9,32 +9,68 @@
 </head>
 <body>
   <div class="auth-page">
-    <div class="auth-card">
-      <h1>PUBG PC Tool</h1>
-      <p class="subtitle">Đăng nhập để sử dụng công cụ tính cối &amp; hầm bí mật</p>
+    <div class="auth-bg-glow" aria-hidden="true"></div>
 
-      <div class="auth-message" id="authMessage"></div>
+    <div class="auth-card">
+      <div class="auth-brand">
+        <div class="auth-logo" aria-hidden="true">
+          <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="24" cy="24" r="22" stroke="currentColor" stroke-width="2" opacity="0.35"/>
+            <path d="M24 8v8M24 32v8M8 24h8M32 24h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <circle cx="24" cy="24" r="6" fill="currentColor"/>
+          </svg>
+        </div>
+        <h1>PUBG PC Tool</h1>
+        <p class="subtitle">Công cụ tính cối &amp; hầm bí mật</p>
+      </div>
+
+      <div class="auth-message" id="authMessage" role="alert"></div>
 
       <form class="auth-form" id="loginForm">
         <div class="field">
           <label for="loginUser">Tên đăng nhập</label>
-          <input type="text" id="loginUser" autocomplete="username" required />
+          <div class="input-wrap">
+            <span class="input-icon" aria-hidden="true">
+              <svg viewBox="0 0 20 20" fill="none"><path d="M10 10a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" stroke="currentColor" stroke-width="1.5"/><path d="M3 17c0-3.3 3.1-6 7-6s7 2.7 7 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            </span>
+            <input type="text" id="loginUser" autocomplete="username" placeholder="Nhập tên đăng nhập" required />
+          </div>
         </div>
+
         <div class="field">
           <label for="loginPass">Mật khẩu</label>
-          <input type="password" id="loginPass" autocomplete="current-password" required />
+          <div class="input-wrap">
+            <span class="input-icon" aria-hidden="true">
+              <svg viewBox="0 0 20 20" fill="none"><rect x="4" y="9" width="12" height="8" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M7 9V6a3 3 0 0 1 6 0v3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            </span>
+            <input type="password" id="loginPass" autocomplete="current-password" placeholder="Nhập mật khẩu" required />
+          </div>
         </div>
-        <button type="submit" class="primary">Đăng nhập</button>
+
+        <button type="submit" class="primary" id="loginSubmit">
+          <span class="btn-label">Đăng nhập</span>
+          <span class="btn-spinner" aria-hidden="true">
+            <span class="spinner sm"></span>
+          </span>
+        </button>
       </form>
 
       <p class="auth-hint">
-        Liên hệ <strong>admin</strong> để được cấp tài khoản.
+        Chưa có tài khoản? Liên hệ <strong>admin</strong> để được cấp quyền.
       </p>
+    </div>
+
+    <div class="auth-loading" id="authLoading" aria-hidden="true" aria-live="polite">
+      <div class="auth-loading-box">
+        <span class="spinner"></span>
+        <p>Đang xác thực…</p>
+      </div>
     </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="js/supabase-config.js"></script>
+  <script src="js/hardcoded-users.js"></script>
   <script src="js/auth.js"></script>
   <script src="js/login.js"></script>
 </body>

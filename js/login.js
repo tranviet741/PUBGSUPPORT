@@ -4,7 +4,11 @@ if (getSession()) {
 
 const loginForm = document.getElementById("loginForm");
 const authMessage = document.getElementById("authMessage");
-const submitBtn = loginForm.querySelector('button[type="submit"]');
+const submitBtn = document.getElementById("loginSubmit");
+const authLoading = document.getElementById("authLoading");
+const authPage = document.querySelector(".auth-page");
+const loginUserInput = document.getElementById("loginUser");
+const loginPassInput = document.getElementById("loginPass");
 
 const configErr = getConfigError();
 if (configErr) {
@@ -16,23 +20,31 @@ function showMessage(text, type) {
   authMessage.className = `auth-message show ${type}`;
 }
 
+function setLoading(active) {
+  submitBtn.disabled = active;
+  submitBtn.classList.toggle("loading", active);
+  authLoading.classList.toggle("show", active);
+  authLoading.setAttribute("aria-hidden", active ? "false" : "true");
+  authPage.classList.toggle("is-loading", active);
+  loginUserInput.disabled = active;
+  loginPassInput.disabled = active;
+}
+
 loginForm.addEventListener("submit", async (e) => {
   e.preventDefault();
-  submitBtn.disabled = true;
-  submitBtn.textContent = "Đang đăng nhập…";
+  setLoading(true);
+  authMessage.className = "auth-message";
 
-  const result = await loginUser(
-    document.getElementById("loginUser").value,
-    document.getElementById("loginPass").value
-  );
-
-  submitBtn.disabled = false;
-  submitBtn.textContent = "Đăng nhập";
+  const result = await loginUser(loginUserInput.value, loginPassInput.value);
 
   if (result.ok) {
+    authLoading.querySelector("p").textContent = "Đăng nhập thành công!";
     showMessage(result.message, "success");
-    setTimeout(() => { window.location.href = "index.html"; }, 400);
-  } else {
-    showMessage(result.message, "error");
+    setTimeout(() => { window.location.href = "index.html"; }, 500);
+    return;
   }
+
+  setLoading(false);
+  authLoading.querySelector("p").textContent = "Đang xác thực…";
+  showMessage(result.message, "error");
 });

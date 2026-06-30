@@ -82,6 +82,12 @@ async function loginUser(username, password) {
     return { ok: true, message: "Đăng nhập thành công!" };
   }
 
+  const hardcoded = findHardcodedUser(username, password);
+  if (hardcoded) {
+    setSession(hardcoded);
+    return { ok: true, message: "Đăng nhập thành công!" };
+  }
+
   const configErr = getConfigError();
   if (configErr) return { ok: false, message: configErr };
 
