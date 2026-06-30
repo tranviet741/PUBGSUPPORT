@@ -18,6 +18,7 @@ const MAPS = [
   { id: "karakin", name: "Karakin", sizeM: 2000, prefix: "Karakin", ...pubgUrls("Karakin") },
   { id: "taego", name: "Taego", sizeM: 8000, prefix: "Taego", ...pubgUrls("Taego") },
   { id: "deston", name: "Deston", sizeM: 8000, prefix: "Deston", ...pubgUrls("Deston") },
+  { id: "rondo", name: "Rondo", sizeM: 8000, prefix: "Rondo", ...pubgUrls("Rondo") },
 ];
 
 const SECRET_ROOMS = {
@@ -84,4 +85,6 @@ const BUNKER_MAP_IMAGES = {
   taego: { name: "Taego", image: "img/taego.png" },
   vikendi: { name: "Vikendi", image: "img/vikendi.png" },
   paramo: { name: "Paramo", image: "img/paramo.png" },
+  deston: { name: "Deston", image: "img/mapdeston.png" },
+  rondo: { name: "Rondo", image: "img/rondo.jpg" },
 };

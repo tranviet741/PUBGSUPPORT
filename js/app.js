@@ -32,8 +32,6 @@ const distanceValue = document.getElementById("distanceValue");
 const mortarStatus = document.getElementById("mortarStatus");
 const mapInfo = document.getElementById("mapInfo");
 const coordsText = document.getElementById("coordsText");
-const btnToolPan = document.getElementById("btnToolPan");
-const btnToolMeasure = document.getElementById("btnToolMeasure");
 const zoomLabel = document.getElementById("zoomLabel");
 
 const MIN_ZOOM = 0.4;
@@ -59,8 +57,6 @@ let mapNativeH = 0;
 let hdReady = false;
 let hdLoading = false;
 let mapLoadToken = 0;
-let toolMode = "pan";
-
 const bunkerImageCache = new Map();
 
 MAPS.forEach((m, i) => {
@@ -78,13 +74,6 @@ function getMapById(id) {
 function setMapLoading(show, text = "Đang tải bản đồ…") {
   loadingText.textContent = text;
   loading.classList.toggle("hidden", !show);
-}
-
-function setToolMode(mode) {
-  toolMode = mode;
-  btnToolPan.classList.toggle("active", mode === "pan");
-  btnToolMeasure.classList.toggle("active", mode === "measure");
-  mapViewport.classList.toggle("measuring", mode === "measure");
 }
 
 function startMeasure(p) {
@@ -514,12 +503,6 @@ mapViewport.addEventListener("touchstart", (e) => {
   if (e.touches.length !== 1) return;
   const t = e.touches[0];
   e.preventDefault();
-  if (toolMode === "measure") {
-    const p = clientToMap(t.clientX, t.clientY);
-    if (!p) return;
-    startMeasure(p);
-    return;
-  }
   panning = true;
   panStart = { x: t.clientX, y: t.clientY, panX, panY };
   mapViewport.classList.add("panning");
@@ -590,9 +573,6 @@ mapViewport.addEventListener("touchend", (e) => {
   if (p && pointA) finishMeasure(p);
 });
 
-btnToolPan.addEventListener("click", () => setToolMode("pan"));
-btnToolMeasure.addEventListener("click", () => setToolMode("measure"));
-
 function bindZoomButtons(id, fn) {
   const el = document.getElementById(id);
   if (el) el.addEventListener("click", fn);
@@ -613,7 +593,6 @@ document.getElementById("btnClear").addEventListener("click", () => {
 });
 
 window.addEventListener("resize", resizeOverlay);
-setToolMode("pan");
 loadMap(MAPS[0]);
 
 /* Modal hầm bí mật — preload + cache */

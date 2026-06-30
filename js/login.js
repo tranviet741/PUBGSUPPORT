@@ -10,11 +10,6 @@ const authPage = document.querySelector(".auth-page");
 const loginUserInput = document.getElementById("loginUser");
 const loginPassInput = document.getElementById("loginPass");
 
-const configErr = getConfigError();
-if (configErr) {
-  showMessage(configErr, "error");
-}
-
 function showMessage(text, type) {
   authMessage.textContent = text;
   authMessage.className = `auth-message show ${type}`;
