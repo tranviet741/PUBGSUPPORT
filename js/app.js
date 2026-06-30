@@ -18,10 +18,6 @@ if (btnLogout) {
 const mapSelect = document.getElementById("mapSelect");
 const mapCanvas = document.getElementById("mapCanvas");
 const mapCtx = mapCanvas.getContext("2d");
-const mapImageLow = new Image();
-const mapImageHigh = new Image();
-mapImageLow.crossOrigin = "anonymous";
-mapImageHigh.crossOrigin = "anonymous";
 const mapViewport = document.getElementById("mapViewport");
 const mapStage = document.getElementById("mapStage");
 const overlay = document.getElementById("overlay");
@@ -55,8 +51,9 @@ let activeMapImage = null;
 let mapNativeW = 0;
 let mapNativeH = 0;
 let hdReady = false;
-let hdLoading = false;
 let mapLoadToken = 0;
+let activeMapImageRef = null;
+let mapPreloadRunning = false;
 const bunkerImageCache = new Map();
 
 MAPS.forEach((m, i) => {
@@ -96,7 +93,7 @@ function isPanTrigger(e) {
 }
 
 function updateMapInfo() {
-  const quality = hdReady ? "HD" : hdLoading ? "SD → HD" : "SD";
+  const quality = hdReady ? "HD" : "Đang tải HD…";
   mapInfo.textContent = `${currentMap.sizeM / 1000}×${currentMap.sizeM / 1000} km · ${quality}`;
 }
 
@@ -264,7 +261,6 @@ function zoomAt(sx, sy, factor) {
   panY = sy - v * baseHeight * scale;
   clampPan();
   applyTransform();
-  maybeLoadHD();
 }
 
 function zoomBy(factor) {
@@ -355,17 +351,31 @@ function finishMeasure(endPoint) {
   redraw();
 }
 
-function maybeLoadHD() {
-  if (hdReady || hdLoading || scale < 1.5) return;
-  hdLoading = true;
-  updateMapInfo();
-  mapImageHigh.src = currentMap.imgHigh;
+function releaseActiveMapImage() {
+  if (activeMapImageRef) {
+    revokeMapImage(activeMapImageRef);
+    activeMapImageRef = null;
+  }
+  activeMapImage = null;
 }
 
-function loadMap(map) {
+async function preloadAllMapsHD(skipId) {
+  if (mapPreloadRunning) return;
+  mapPreloadRunning = true;
+
+  for (const map of MAPS) {
+    if (map.id === skipId) continue;
+    if (await isMapCached(map.imgHigh)) continue;
+    await preloadMapUrl(map.imgHigh);
+  }
+
+  mapPreloadRunning = false;
+}
+
+async function loadMap(map) {
   const token = ++mapLoadToken;
   currentMap = map;
-  setMapLoading(true, "Đang tải bản đồ…");
+  setMapLoading(true, "Đang tải bản đồ HD…");
   pointA = null;
   pointB = null;
   dragging = false;
@@ -374,47 +384,58 @@ function loadMap(map) {
   updateMortarStatus(NaN);
   coordsText.textContent = "";
   hdReady = false;
-  hdLoading = false;
-  activeMapImage = null;
+  releaseActiveMapImage();
   mapNativeW = 0;
   mapNativeH = 0;
-  mapImageHigh.src = "";
   updateMapInfo();
 
-  mapImageLow.onload = () => {
-    if (token !== mapLoadToken) return;
-    activeMapImage = mapImageLow;
-    mapNativeW = mapImageLow.naturalWidth;
-    mapNativeH = mapImageLow.naturalHeight;
+  const cached = await isMapCached(map.imgHigh);
+  if (!cached) {
+    setMapLoading(true, "Đang tải bản đồ HD (lần đầu, sẽ lưu cache)…");
+  }
+
+  try {
+    const img = await loadMapImage(map.imgHigh);
+    if (token !== mapLoadToken) {
+      revokeMapImage(img);
+      return;
+    }
+
+    activeMapImageRef = img;
+    activeMapImage = img;
+    mapNativeW = img.naturalWidth;
+    mapNativeH = img.naturalHeight;
+    hdReady = true;
     setMapLoading(false);
     fitMapToViewport(true);
     resizeOverlay();
     updateMapInfo();
-  };
-
-  mapImageLow.onerror = () => {
+    preloadAllMapsHD(map.id);
+  } catch {
     if (token !== mapLoadToken) return;
-    setMapLoading(true, "Không tải được map — cần internet");
-  };
 
-  mapImageHigh.onload = () => {
-    if (token !== mapLoadToken) return;
-    activeMapImage = mapImageHigh;
-    mapNativeW = mapImageHigh.naturalWidth;
-    mapNativeH = mapImageHigh.naturalHeight;
-    hdReady = true;
-    hdLoading = false;
-    applyTransform();
-    updateMapInfo();
-  };
+    try {
+      setMapLoading(true, "HD lỗi — đang thử bản thấp…");
+      const img = await loadMapImage(map.imgLow);
+      if (token !== mapLoadToken) {
+        revokeMapImage(img);
+        return;
+      }
 
-  mapImageHigh.onerror = () => {
-    if (token !== mapLoadToken) return;
-    hdLoading = false;
-    updateMapInfo();
-  };
-
-  mapImageLow.src = map.imgLow;
+      activeMapImageRef = img;
+      activeMapImage = img;
+      mapNativeW = img.naturalWidth;
+      mapNativeH = img.naturalHeight;
+      hdReady = false;
+      setMapLoading(false);
+      fitMapToViewport(true);
+      resizeOverlay();
+      updateMapInfo();
+    } catch {
+      if (token !== mapLoadToken) return;
+      setMapLoading(true, "Không tải được map — cần internet");
+    }
+  }
 }
 
 mapSelect.addEventListener("change", () => {
@@ -531,7 +552,6 @@ mapViewport.addEventListener("touchmove", (e) => {
     panY = midY - v * baseHeight * scale;
     clampPan();
     applyTransform();
-    maybeLoadHD();
     return;
   }
   if (panning && panStart && e.touches.length === 1) {

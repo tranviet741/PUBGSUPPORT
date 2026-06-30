@@ -525,3 +525,21 @@ select:focus, button:focus {
 }
 
 .modal-loading.hidden { display: none; }
+
+.app-version {
+  position: fixed;
+  right: 0.5rem;
+  bottom: 0.35rem;
+  z-index: 50;
+  padding: 0.2rem 0.45rem;
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+  background: rgba(21, 29, 43, 0.85);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  pointer-events: none;
+  user-select: none;
+  opacity: 0.75;
+}
